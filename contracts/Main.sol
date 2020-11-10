@@ -109,8 +109,8 @@ contract Main is ReentrancyGuard, VersionedInitializable {
 
     function withdraw(address token, uint256 reserve) public nonReentrant {
         _withdraw(token, reserve);
-        //注: 不需要放到 @_withdraw, 因为 exchange 会用到 @_withdraw, 且不要求 @_isfade. 
-        require(!_isfade(msg.sender, token), "Main.withdraw.EID00061");
+        //注: 不需要放到 @_withdraw, 因为 exchange 会用到 @_withdraw, 且不要求 >= bade. 
+        require(ade(msg.sender, token) >= IEnv(env).aade(token), "Main.withdraw.EID00063");
         IBroker(broker).publish(keccak256("withdraw"), abi.encode(msg.sender, token, reserve));
         emit Withdraw(
             msg.sender,
@@ -305,7 +305,7 @@ contract Main is ReentrancyGuard, VersionedInitializable {
         IBalance(balance).mint(msg.sender, token, supply);
 
         //后置充足率检测.
-        require(_isbade(msg.sender, token), "Main.mint.EID00062");
+        require(ade(msg.sender, token) >= IEnv(env).bade(token), "Main.mint.EID00062");
 
         uint256 _supply = IBalance(balance).supply(token);
         uint256 _line = IEnv(env).line(token);
@@ -328,15 +328,6 @@ contract Main is ReentrancyGuard, VersionedInitializable {
         );
         require(valid, "Main.price.EID00094");
         return value;
-    }
-
-    //仓位是否满足初始充足率
-    function _isbade(address owner, address token)
-        internal
-        view
-        returns (bool)
-    {
-        return ade(owner, token) >= IEnv(env).bade(token);
     }
 
     //仓位是否被冻结.
