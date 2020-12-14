@@ -13,4 +13,6 @@ interface IEnv {
     function hasToken(address token) external view returns(bool);
     function deprecatedTokens(address token) external view returns(bool);
     function lockdown() external view returns(bool);
+    function flashloanRate() external view returns(uint256);
+    function protocolAsset() external view returns(address payable);
 }

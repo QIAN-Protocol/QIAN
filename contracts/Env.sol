@@ -15,7 +15,7 @@ contract Env is Administered, VersionedInitializable {
         uint256 fade; //最低资产充足率      //Frozen Adequacy ratio
         uint256 line; //最高铸币量
     }
-    
+
     uint256 public step; //单次最低铸币量(所有币种)
     uint256 public gade; //全局充足率 //global adequacy ratio
     mapping(address => Tokenargs) public tokenargs;
@@ -25,6 +25,9 @@ contract Env is Administered, VersionedInitializable {
     EnumerableSet.AddressSet private _tokens; //支持的币种列表
     mapping(address => bool) public deprecatedTokens; //被废弃的币种列表, 只出不进
     bool public lockdown;
+
+    uint256 public flashloanRate;
+    address public protocolAsset;
 
     bytes32 public constant LOCKDOWN_ROLE = keccak256("LOCKDOWN");
     bytes32 public constant ACTIVE_ROLE = keccak256("ACTIVE");
@@ -141,5 +144,13 @@ contract Env is Administered, VersionedInitializable {
             values[i] = _tokens.at(i);
         }
         return values;
+    }
+
+    function setFlashloanRate(uint256 _flashloanRate) public onlyActive {
+        flashloanRate = _flashloanRate;
+    }
+
+    function setProtocolAsset(address _protocolAsset) public onlyActive {
+        protocolAsset = _protocolAsset;
     }
 }

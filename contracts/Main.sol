@@ -12,6 +12,7 @@ import "./interfaces/IBurnable.sol";
 import "./interfaces/IMintable.sol";
 import "./interfaces/IBroker.sol";
 import "./interfaces/IOrderbase.sol";
+import "./interfaces/IFlashLoanReceiver.sol";
 
 import "./lib/VersionedInitializable.sol";
 import "./lib/ReentrancyGuard.sol";
@@ -63,6 +64,14 @@ contract Main is ReentrancyGuard, VersionedInitializable {
         uint256 price
     );
 
+    event FlashLoan(
+        address indexed receiver,
+        address indexed token,
+        uint256 amount,
+        uint256 fee,
+        uint256 time
+    );
+
     address public env;
     address public balance;
     address public coin;
@@ -109,7 +118,6 @@ contract Main is ReentrancyGuard, VersionedInitializable {
 
     function withdraw(address token, uint256 reserve) public nonReentrant {
         _withdraw(token, reserve);
-        //注: 不需要放到 @_withdraw, 因为 exchange 会用到 @_withdraw, 且不要求 >= bade. 
         require(ade(msg.sender, token) >= IEnv(env).aade(token), "Main.withdraw.EID00063");
         IBroker(broker).publish(keccak256("withdraw"), abi.encode(msg.sender, token, reserve));
         emit Withdraw(
@@ -186,10 +194,7 @@ contract Main is ReentrancyGuard, VersionedInitializable {
             lot = Math.min(lot, swaps[i].reserve);
 
             IBalance(balance).exchange(msg.sender, _owner, _token, rid, lot);
-            IBroker(broker).publish(
-                keccak256("burn"),
-                abi.encode(_owner, _token, rid)
-            );
+            IBroker(broker).publish(keccak256("burn"), abi.encode(_owner, _token, rid));
             reserve = reserve.add(lot);
             if (_supply == 0) break;
         }
@@ -197,10 +202,7 @@ contract Main is ReentrancyGuard, VersionedInitializable {
         uint256 __supply = supply.sub(_supply);
         IBurnable(coin).burn(msg.sender, __supply);
         _withdraw(token, reserve);
-        IBroker(broker).publish(
-            keccak256("exchange"),
-            abi.encode(msg.sender, __supply, token, reserve, _frozens)
-        );
+        IBroker(broker).publish(keccak256("exchange"), abi.encode(msg.sender, __supply, token, reserve, _frozens));
         emit Exchange(
             msg.sender,
             __supply,
@@ -211,6 +213,39 @@ contract Main is ReentrancyGuard, VersionedInitializable {
             _frozens,
             _price(token)
         );
+    }
+
+    function flashloan(
+        address receiver,
+        address token,
+        uint256 amount,
+        bytes memory params
+    ) public nonReentrant {
+        require(!IEnv(env).lockdown(), "Main.flashloan.EID00030");
+        require(
+            IEnv(env).hasToken(token) && !IEnv(env).deprecatedTokens(token),
+            "Main.flashloan.EID00070"
+        );
+
+        require(amount > 0, "Main.flashloan.EID00090");
+        uint256 balancesBefore = IAsset(asset).balances(token);
+        require(balancesBefore >= amount, "Main.flashlon.EID00100");
+
+        uint256 flashloanRate = IEnv(env).flashloanRate();
+        uint256 fee = amount.mul(flashloanRate).div(10000);
+        require(fee > 0, "Main.flashloan.EID00101");
+
+        IFlashLoanReceiver flashLoanReceiver = IFlashLoanReceiver(receiver);
+        address payable _receiver = address(uint160(receiver));
+
+        IAsset(asset).withdraw(_receiver, token, amount);
+        flashLoanReceiver.execute(token, amount, fee, asset, params);
+
+        uint256 balancesAfter = IAsset(asset).balances(token);
+        require(balancesAfter == balancesBefore.add(fee), "Main.flashloan.EID00102");
+
+        IAsset(asset).withdraw(IEnv(env).protocolAsset(), token, fee);
+        emit FlashLoan(receiver, token, amount, fee, block.timestamp);
     }
 
     //充足率 (Adequacy ratio)

@@ -9,6 +9,11 @@ import "./lib/Ownable.sol";
 contract Asset is Ownable, VersionedInitializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
+    using Address for address payable;
+
+    receive() external payable {
+        require(msg.sender.isContract(), "Only contracts can send ether");
+    }
 
     function getRevision() internal override pure returns (uint256) {
         return uint256(0x1);
